@@ -11,6 +11,7 @@ describe('WorkerRunner', () => {
     let promise2Resolved;
     const orderResolved = [];
 
+    // TODO: Write a function to return these promises
     const promise1 = new Promise((resolve) => {
       promise1Resolved = () => {
         orderResolved.push(1);
@@ -48,6 +49,8 @@ describe('WorkerRunner', () => {
     });
 
     workers.enqueueJob(promise1Resolved, {callbackUrl: 'http://localhost:3002'});
+
+    await promise1;
 
     expect(jobAttempts).to.eql(6);
   });
