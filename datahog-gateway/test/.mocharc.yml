@@ -1,4 +1,4 @@
-recursive: true
 file:
   - './test/setup.js'
+recursive: true
 timeout: 5000

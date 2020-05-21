@@ -4,7 +4,7 @@ const callDatahogJob = async (params) => {
   //console.log(`callDatahogJob with params:`)
   //console.log(params);
   return new Promise((resolve, reject) => {
-    request('http://datahog:3000/providers/gas', { json: true }, (err, res, body) => {
+    request(`http://datahog:3000/providers/${params.provider}`, { json: true }, (err, res, body) => {
       if (err) {
         reject(err);
       }
