@@ -1,7 +1,5 @@
 const { WorkerRunner } = require('../../src/worker_runner');
 
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
 describe('WorkerRunner', () => {
   it('processing jobs in the correct order', async () => {
     const workers = new WorkerRunner(1);

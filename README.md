@@ -9,7 +9,11 @@ $ docker-compose up
 ```
 
 ## Usage
-TODO
+```
+$ curl --location --request POST 'http://localhost:3001' \
+--header 'Content-Type: application/json' \
+--data-raw '{"provider": "HELLO", "callbackUrl": "http://callback-server:3002"}'
+```
 
 ## Test
 ```

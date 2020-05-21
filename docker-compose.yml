@@ -11,3 +11,9 @@ services:
       - ./datahog-gateway/test:/app/test
     ports:
       - "3001:3001"
+  callback-server:
+    build: ./callback-server
+    volumes:
+      - ./callback-server/src:/app/src
+    ports:
+      - "3002:3002"
