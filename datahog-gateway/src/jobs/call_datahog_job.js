@@ -1,1 +1,5 @@
-console.log('Calling datahog!')
+const callDatahogJob = () => {
+  console.log(`Calling DH!!!!!!!!!!!!!!!!!!!!!!!`)
+};
+
+module.exports = { callDatahogJob };
