@@ -47,7 +47,8 @@ class WorkerRunner {
     console.log(`[WorkerRunner] Processing ${job.id}`)
 
     try {
-      await job.func(job.params);
+      // TODO: Probably a nicer way of doing this like using .bind()...
+      await job.func(job);
       this.busyWorkers -= 1;
       console.log(`[WorkerRunner] Job ${job.id} done.`);
     } catch(e) {

@@ -11,13 +11,13 @@ describe('WorkerRunner', () => {
 
     // TODO: Write a function to return these promises
     const promise1 = new Promise((resolve) => {
-      promise1Resolved = () => {
+      promise1Resolved = (job) => {
         orderResolved.push(1);
         resolve();
       };
     });
     const promise2 = new Promise((resolve) => {
-      promise2Resolved = () => {
+      promise2Resolved = (job) => {
         orderResolved.push(2);
         resolve();
       };
@@ -35,20 +35,27 @@ describe('WorkerRunner', () => {
     const workers = new WorkerRunner(1, 5);
     workers.start();
 
-    let promise1Resolved;
+    let jobFunc;
     let jobAttempts = 0;
 
-    const promise1 = new Promise((resolve) => {
-      promise1Resolved = () => {
+    // This promise is only resolved once the function return has been attempted
+    // 5 times by the WorkerRunner, otherwise it throws an error
+    const jobFuncCalled6Times = new Promise((resolve) => {
+      jobFunc = (job) => {
+        console.log(`-----------------------------> ${job.attempts}`)
         jobAttempts += 1;
-        resolve();
-        throw new Error('Something went wrong!');
+
+        if (job.attempts >= 5) {
+          resolve();
+        } else {
+          throw new Error('Something went wrong!');
+        }
       };
     });
 
-    workers.enqueueJob(promise1Resolved, {callbackUrl: 'http://localhost:3002'});
+    workers.enqueueJob(jobFunc, {callbackUrl: 'http://localhost:3002'});
 
-    await promise1;
+    await jobFuncCalled6Times;
 
     expect(jobAttempts).to.eql(6);
   });

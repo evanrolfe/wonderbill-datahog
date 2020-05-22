@@ -1,8 +1,8 @@
 const request = require('request');
 
-const callDatahogJob = async (params) => {
-  //console.log(`callDatahogJob with params:`)
-  //console.log(params);
+const callDatahogJob = async (job) => {
+  const { params } = job;
+
   return new Promise((resolve, reject) => {
     request(`http://datahog:3000/providers/${params.provider}`, { json: true }, (err, res, body) => {
       if (err) {
