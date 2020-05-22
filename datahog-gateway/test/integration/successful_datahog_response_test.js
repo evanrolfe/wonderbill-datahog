@@ -26,7 +26,8 @@ describe('Datahog-Gateway', () => {
     });
 
     after(() => {
-      // This is needed to stop the running server:
+      // TODO: Find a better way of closing the server! This means that the integration
+      // tests always have to come last in the test order execution.
       process.exit(0);
     });
 
@@ -49,5 +50,9 @@ describe('Datahog-Gateway', () => {
       await sleep(100);
       expect(callbackRequest.isDone()).to.eq(true);
     });
+  });
+
+  context('when datahog returns a failed response', () => {
+    // TODO
   });
 });
