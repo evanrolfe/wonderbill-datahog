@@ -7,7 +7,7 @@ I'm not sure if we were expected to code a background job processor from scratch
 ## Install
 
 ```
-$ git clone ...
+$ git clone git@github.com:evanrolfe/wonderbill-datahog.git
 $ docker-compose build
 $ docker-compose up
 ```
