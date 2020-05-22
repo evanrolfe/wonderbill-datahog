@@ -12,7 +12,7 @@ const callDatahogJob = async (job) => {
       if (body == '#fail') {
         reject('Provider returned failure');
       } else {
-        console.log(`Received response! Calling callbackUrl: ${params.callbackUrl} with body: ${body}`)
+        console.log(`[callDatahogJob] Received response! Calling callbackUrl: ${params.callbackUrl} with body: ${body}`)
         console.log(body);
 
         const requestParams = {

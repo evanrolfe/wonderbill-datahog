@@ -25,12 +25,12 @@ class WorkerRunner {
   _onJobQueuedEvent(jobId) {
     const job = this.jobsQueue.dequeue(jobId);
 
-    console.log(`[WorkerRunner] A job has been queued! ${job.id}`);
+    console.log(`[WorkerRunner] Job ${job.id} trying to process...`);
 
     if (this._workerIsAvailable()) {
       this._processJob(job);
     } else {
-      console.log(`[WorkerRunner] No worker available for job ${job.id}`)
+      console.log(`[WorkerRunner] Job ${job.id} no worker available for processing.`);
       setTimeout(() => {
         this.jobsQueue.enqueue(job);
         this.events.emit('jobQueued', jobId);
@@ -44,7 +44,7 @@ class WorkerRunner {
 
   async _processJob(job) {
     this.busyWorkers += 1;
-    console.log(`[WorkerRunner] Processing ${job.id}`)
+    console.log(`[WorkerRunner] Job ${job.id} processing...`);
 
     try {
       // TODO: Probably a nicer way of doing this like using .bind()...
@@ -52,10 +52,11 @@ class WorkerRunner {
       this.busyWorkers -= 1;
       console.log(`[WorkerRunner] Job ${job.id} done.`);
     } catch(e) {
-      console.log(`=============================================================`)
       console.log(`[WorkerRunner] Job ${job.id} failed`);
       this.busyWorkers -= 1;
       this._retryJob(job);
+    } finally {
+      console.log(`\n`);
     }
   }
 
@@ -68,7 +69,7 @@ class WorkerRunner {
     const wait = job.attempts * 250;
     await sleep(wait);
 
-    console.log(`[WorkerRunner] Retrying job ${job.id} (${job.attempts}) after waiting ${wait} ms`)
+    console.log(`[WorkerRunner] Job ${job.id} retrying (attempt ${job.attempts}) after waiting ${wait} ms`)
     job.attempts += 1;
     this._enqueueJobObj(job);
   }

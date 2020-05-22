@@ -12,12 +12,30 @@ const serverPorts = {
 }
 
 const handlePostRequest = (req, res) => {
-  console.log('Received post request!');
-  const jobParams = {provider: req.body.provider, callbackUrl: req.body.callbackUrl};
-  console.log(jobParams);
+  console.log('[Server] Received POST request with body:');
+  console.log(`[Server] ${JSON.stringify(req.body)}`);
+  let response;
+  const provider = req.body.provider;
+  const callbackUrl = req.body.callbackUrl;
+
+  // Validate provider and callbackUrl are in payload:
+  if (provider == undefined || callbackUrl == undefined) {
+    response = {'error': 'Must supply the provider and callbackUrl values in the request JSON payload'};
+    res.send(JSON.stringify(response));
+    return;
+  }
+
+  // Validate provider is an acceptable value:
+  if (!['gas', 'internet'].includes(provider)) {
+    response = {'error': `The provider given is not valid, it must be either 'gas' or 'internet'`};
+    res.send(JSON.stringify(response));
+    return;
+  }
+
+  const jobParams = {provider: provider, callbackUrl: callbackUrl};
   workers.enqueueJob(callDatahogJob, jobParams);
 
-  const response = {'status': 'queued'};
+  response = {'job_status': 'queued'};
   res.send(JSON.stringify(response));
 };
 
@@ -28,7 +46,7 @@ const startServer = () => {
   server.use(express.json());
   server.get('/', (req, res) => res.send('Welcome to the Datahog Gateway! Enjoy!'));
   server.post('/', handlePostRequest);
-  server.listen(port, () => console.log(`Datahog-Gateway listening at http://localhost:${port}`));
+  server.listen(port, () => console.log(`[Server] Datahog-Gateway listening at http://localhost:${port}`));
 
   return server;
 };

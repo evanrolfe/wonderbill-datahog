@@ -42,7 +42,6 @@ describe('WorkerRunner', () => {
     // 5 times by the WorkerRunner, otherwise it throws an error
     const jobFuncCalled6Times = new Promise((resolve) => {
       jobFunc = (job) => {
-        console.log(`-----------------------------> ${job.attempts}`)
         jobAttempts += 1;
 
         if (job.attempts >= 5) {
