@@ -4,6 +4,8 @@ const { JobsQueue } = require('./jobs_queue');
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+class ServiceDownError extends Error {}
+
 class WorkerRunner {
   constructor(maxConcurrency, retryLimit) {
     this.events = new EventEmitter();
@@ -11,6 +13,7 @@ class WorkerRunner {
     this.busyWorkers = 0;
     this.maxConcurrency = maxConcurrency;
     this.retryLimit = retryLimit;
+    this.state = 'up';
   }
 
   start() {
@@ -34,8 +37,12 @@ class WorkerRunner {
       setTimeout(() => {
         this.jobsQueue.enqueue(job);
         this.events.emit('jobQueued', jobId);
-      }, 500);
+      }, this._jobInterval());
     }
+  }
+
+  _jobInterval() {
+    return (this.state == 'up') ? 100 : 1000;
   }
 
   _workerIsAvailable() {
@@ -80,5 +87,5 @@ class WorkerRunner {
   }
 }
 
-module.exports = { WorkerRunner };
+module.exports = { WorkerRunner, ServiceDownError };
 

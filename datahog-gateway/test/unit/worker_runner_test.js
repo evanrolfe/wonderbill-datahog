@@ -58,4 +58,40 @@ describe('WorkerRunner', () => {
 
     expect(jobAttempts).to.eql(6);
   });
+
+  describe('processing a single job', () => {
+    context('when the state is up', () => {
+      context('and the job completes', () => {
+        it('leaves the state as up', () => {
+          // TODO
+        });
+      });
+
+      context('and the job throws ServiceDownError', () => {
+        it('sets the state to down', () => {
+          // TODO
+        });
+      });
+
+      context('and the job throws an Error', () => {
+        it('leaves the state as up', () => {
+          // TODO
+        });
+      });
+    });
+
+    context('when the state is down', () => {
+      context('and the job completes', () => {
+        it('sets the state to up', () => {
+          // TODO
+        });
+      });
+
+      context('and the job throws ServiceDownError', () => {
+        it('leaves the state as down', () => {
+          // TODO
+        });
+      });
+    });
+  });
 });
