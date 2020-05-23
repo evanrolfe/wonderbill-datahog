@@ -3,7 +3,7 @@ const { callDatahogJob } = require('./jobs/call_datahog_job');
 const { WorkerRunner } = require('./worker_runner');
 
 
-const workers = new WorkerRunner(1, 10);
+const workers = new WorkerRunner({maxConcurrency: 1, retryLimit: 10});
 workers.start();
 
 const serverPorts = {
