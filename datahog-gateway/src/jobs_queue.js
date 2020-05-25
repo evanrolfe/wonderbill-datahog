@@ -17,8 +17,15 @@ class JobsQueue {
     return this.jobs.length;
   }
 
-  alreadyQueued(url) {
-    //return includes(this.queuedUrls, url);
+  getNextJob(job) {
+    const currentIndex = this.jobs.indexOf(job);
+    let nextIndex = currentIndex + 1;
+
+    if (nextIndex >= this.jobs.length - 1) {
+      nextIndex = 0;
+    }
+
+    return this.jobs[nextIndex];
   }
 }
 

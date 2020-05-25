@@ -4,8 +4,14 @@ const { JobsQueue } = require('./jobs_queue');
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-class ServiceDownError extends Error {}
+class ServiceDownError extends Error {
+  constructor() {
+    super('The service is down!');
+  }
+}
 
+// TODO: This class is very monolithic, should be broken up according to behaviour,
+// i.e. split the code between the UP state and the DOWN state behaviour
 class WorkerRunner {
   constructor({maxConcurrency, retryLimit}) {
     this.events = new EventEmitter();
@@ -18,17 +24,24 @@ class WorkerRunner {
 
   start() {
     console.log(`[WorkerRunner] Starting in state: UP`);
-    this.events.on('jobQueued', this._onJobQueuedEvent.bind(this));
+    this.events.on('jobQueued', this._onJobQueuedEventUp.bind(this));
+
+    // If there are already jobs in the queue then we have to emit events for each job,
+    // this happens if the service is down but then goes back up again
+    this.jobsQueue.jobs.forEach((job) => {
+      console.log(`Emitting jobQueued ${job.id}`)
+      this.events.emit('jobQueued', job.id);
+    });
+  }
+
+  startDown() {
+    console.log(`[WorkerRunner] Starting in state: DOWN`);
+    this.events.on('jobQueued', this._onJobQueuedEventDown.bind(this));
   }
 
   stop() {
     this.events.removeAllListeners('jobQueued');
     console.log(`[WorkerRunner] Stopped.`);
-  }
-
-  startDown() {
-    console.log(`[WorkerRunner] Starting in state: DOWN`);
-    // TODO
   }
 
   enqueueJob(jobFunc, jobParams) {
@@ -37,13 +50,13 @@ class WorkerRunner {
     return job;
   }
 
-  async _onJobQueuedEvent(jobId) {
+  async _onJobQueuedEventUp(jobId) {
     const job = this.jobsQueue.dequeue(jobId);
 
     console.log(`[WorkerRunner] Job ${job.id} trying to process...`);
 
     if (this._workerIsAvailable()) {
-      await this._processJob(job);
+      await this._processJobUp(job);
     } else {
       console.log(`[WorkerRunner] Job ${job.id} no worker available for processing.`);
       setTimeout(() => {
@@ -53,15 +66,17 @@ class WorkerRunner {
     }
   }
 
-  _jobInterval() {
-    return (this.state == 'up') ? 100 : 1000;
+  async _onJobQueuedEventDown(jobId) {
+    const job = this.jobsQueue.dequeue(jobId);
+
+    console.log(`[WorkerRunner] Job ${job.id} trying to process...`);
+
+    await this._processJobDown(job);
   }
 
-  _workerIsAvailable() {
-    return (this.busyWorkers < this.maxConcurrency);
-  }
-
-  async _processJob(job) {
+  // Processing a single job in the UP state
+  // TODO: Get rid of the duplicated coded bewtween this function and _processJobDown()
+  async _processJobUp(job) {
     this.busyWorkers += 1;
     console.log(`[WorkerRunner] Job ${job.id} processing...`);
 
@@ -70,6 +85,7 @@ class WorkerRunner {
       await job.func(job);
       this.busyWorkers -= 1;
       console.log(`[WorkerRunner] Job ${job.id} done.`);
+
     } catch(e) {
       this.busyWorkers -= 1;
       console.log(`[WorkerRunner] Job ${job.id} failed - ${e.message}`);
@@ -85,11 +101,56 @@ class WorkerRunner {
     }
   }
 
+  // Processing a single job in the DOWN state
+  async _processJobDown(job) {
+    this.busyWorkers += 1;
+    console.log(`[WorkerRunner] Job ${job.id} processing...`);
+
+    try {
+      await job.func(job);
+      this.busyWorkers -= 1;
+      console.log(`[WorkerRunner] Job ${job.id} done.`);
+
+      // The service is Up again so we can go back to the UP state:
+      this._setUpState();
+
+    } catch(e) {
+      this.busyWorkers -= 1;
+      console.log(`[WorkerRunner] Job ${job.id} failed - ${e.message}`);
+
+      this.jobsQueue.enqueue(job);
+
+      // Process the next job in the queue:
+      const nextJob = this.jobsQueue.getNextJob(job);
+
+      await sleep(this._jobInterval());
+      this.events.emit('jobQueued', nextJob.id);
+
+    } finally {
+      console.log(`\n`);
+    }
+  }
+
   _setDownState() {
-    console.log(`[WorkerRunner] Setting down state...`);
+    console.log(`[WorkerRunner] Setting DOWN state...`);
     this.stop();
     this.state = 'down';
     this.startDown();
+  }
+
+  _setUpState() {
+    console.log(`[WorkerRunner] Setting UP state...`);
+    this.stop();
+    this.state = 'up';
+    this.start();
+  }
+
+  _jobInterval() {
+    return (this.state == 'up') ? 100 : 1000;
+  }
+
+  _workerIsAvailable() {
+    return (this.busyWorkers < this.maxConcurrency);
   }
 
   async _retryJob(job) {
@@ -109,9 +170,10 @@ class WorkerRunner {
 
   _enqueueJobObj(job) {
     this.jobsQueue.enqueue(job);
-    this.events.emit('jobQueued', job.id);
+    if (this.state == 'up') {
+      this.events.emit('jobQueued', job.id);
+    }
   }
 }
 
 module.exports = { WorkerRunner, ServiceDownError };
-
