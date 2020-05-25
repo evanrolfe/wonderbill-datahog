@@ -8,6 +8,7 @@ server.get('/', (req, res) => res.send('Welcome to the callback server! Enjoy!')
 server.post('/', (req, res) => {
   console.log(`Recieved a post request!`);
   console.log(req.body);
+  res.send('{}');
 });
 server.listen(port, () => console.log(`Callback-Server listening at http://localhost:${port}`));
 

@@ -1,41 +1,52 @@
 const express = require('express');
 const { callDatahogJob } = require('./jobs/call_datahog_job');
 const { WorkerRunner } = require('./worker_runner');
-
-
-const workers = new WorkerRunner(1, 10);
-workers.start();
+const { Provider } = require('./provider');
 
 const serverPorts = {
   'production': 3001,
   'test': 4001,
 }
 
+const gasProvider = new Provider('gas', 'http://datahog:3000/providers/gas');
+const internetProvider = new Provider('internet', 'http://datahog:3000/providers/internet');
+const providers = {
+  'gas': gasProvider,
+  'internet': internetProvider,
+};
+
 const handlePostRequest = (req, res) => {
   console.log('[Server] Received POST request with body:');
   console.log(`[Server] ${JSON.stringify(req.body)}`);
   let response;
-  const provider = req.body.provider;
+  const providerKey = req.body.provider;
   const callbackUrl = req.body.callbackUrl;
 
-  // Validate provider and callbackUrl are in payload:
-  if (provider == undefined || callbackUrl == undefined) {
+  // Validate providerKey and callbackUrl are in payload:
+  if (providerKey == undefined || callbackUrl == undefined) {
     response = {'error': 'Must supply the provider and callbackUrl values in the request JSON payload'};
     res.send(JSON.stringify(response));
     return;
   }
 
-  // Validate provider is an acceptable value:
-  if (!['gas', 'internet'].includes(provider)) {
+  // Validate providerKey is an acceptable value:
+  const avilableProviders = Object.keys(providers);
+  if (!avilableProviders.includes(providerKey)) {
     response = {'error': `The provider given is not valid, it must be either 'gas' or 'internet'`};
     res.send(JSON.stringify(response));
     return;
   }
 
-  const jobParams = {provider: provider, callbackUrl: callbackUrl};
-  workers.enqueueJob(callDatahogJob, jobParams);
+  // Request a callback from the Provider:
+  const provider = providers[providerKey];
+  const job = provider.requestCallback(callbackUrl);
 
-  response = {'job_status': 'queued'};
+  response = {
+    job: {
+      id: job.id, state: 'queued'
+    },
+    provider_state: provider.state()
+  };
   res.send(JSON.stringify(response));
 };
 

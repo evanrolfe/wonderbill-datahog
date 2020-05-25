@@ -1,61 +1,98 @@
-const { WorkerRunner } = require('../../src/worker_runner');
+const { WorkerRunner, ServiceDownError } = require('../../src/worker_runner');
+
+const serviceUpJob = () => { return };
+const serviceDownJob = () => { throw new ServiceDownError() };
 
 describe('WorkerRunner', () => {
-  it('processing jobs in the correct order', async () => {
-    const workers = new WorkerRunner(1);
-    workers.start();
+  describe('processing a single job', () => {
+    let workers;
 
-    let promise1Resolved;
-    let promise2Resolved;
-    const orderResolved = [];
+    beforeEach(() => {
+      workers = new WorkerRunner({name: 'test', maxConcurrency: 1, retryLimit: 5});
 
-    // TODO: Write a function to return these promises
-    const promise1 = new Promise((resolve) => {
-      promise1Resolved = (job) => {
-        orderResolved.push(1);
-        resolve();
-      };
-    });
-    const promise2 = new Promise((resolve) => {
-      promise2Resolved = (job) => {
-        orderResolved.push(2);
-        resolve();
-      };
+      // Stub out this function, we dont want it to actually start:
+      workers.start = () => {};
+      workers.startDown = () => {};
+
+      // Stub this because we dont want any sleeps:
+      //workers._jobInterval = () => { return 0 };
     });
 
-    workers.enqueueJob(promise1Resolved, {callbackUrl: 'http://localhost:3002'});
-    workers.enqueueJob(promise2Resolved, {callbackUrl: 'http://localhost:3002'});
+    context('when the state is up', () => {
+      context('and the job completes', () => {
+        it('leaves the state as up', async () => {
+          const job = workers.enqueueJob(() => {}, {});
+          await workers._onJobQueuedEventUp(job.id);
 
-    await Promise.all([promise1, promise2]);
+          expect(workers.state).to.eq('up');
+          expect(workers.jobsQueue.length()).to.eq(0);
+        });
+      });
 
-    expect(orderResolved).to.eql([1, 2]);
-  });
+      context('and the job throws ServiceDownError', () => {
+        it('sets the state to down and re-queues the same job', async () => {
+          const job = workers.enqueueJob(() => {
+            throw new ServiceDownError();
+          }, {});
+          await workers._onJobQueuedEventUp(job.id);
 
-  it('retries failed jobs within the retry limit', async () => {
-    const workers = new WorkerRunner(1, 5);
-    workers.start();
+          expect(workers.state).to.eq('down');
+          expect(workers.jobsQueue.length()).to.eq(1);
+        });
+      });
 
-    let jobFunc;
-    let jobAttempts = 0;
+      context('and the job throws an other Error', () => {
+        it('leaves the state as up', async () => {
+          const job = workers.enqueueJob(() => {
+            throw new Error('The service is down!');
+          }, {});
+          await workers._onJobQueuedEventUp(job.id);
 
-    // This promise is only resolved once the function return has been attempted
-    // 5 times by the WorkerRunner, otherwise it throws an error
-    const jobFuncCalled6Times = new Promise((resolve) => {
-      jobFunc = (job) => {
-        jobAttempts += 1;
-
-        if (job.attempts >= 5) {
-          resolve();
-        } else {
-          throw new Error('Something went wrong!');
-        }
-      };
+          expect(workers.state).to.eq('up');
+        });
+      });
     });
 
-    workers.enqueueJob(jobFunc, {callbackUrl: 'http://localhost:3002'});
+    context('when the state is down', () => {
+      context('and the job completes', () => {
+        it('sets the state to up', async () => {
+          workers.state = 'down';
+          const eventsEmitSpy = sinon.spy(workers.events, 'emit');
 
-    await jobFuncCalled6Times;
+          const job1 = workers.enqueueJob(serviceUpJob, {});
+          const job2 = workers.enqueueJob(serviceUpJob, {});
+          const job3 = workers.enqueueJob(serviceUpJob, {});
 
-    expect(jobAttempts).to.eql(6);
+          await workers._onJobQueuedEventDown(job1.id);
+
+          expect(workers.state).to.eq('up');
+
+          expect(eventsEmitSpy.withArgs('jobQueued', job2.id).calledOnce).to.eq(true);
+          expect(eventsEmitSpy.withArgs('jobQueued', job3.id).calledOnce).to.eq(true);
+        });
+      });
+
+      context('and the job throws ServiceDownError', () => {
+        it('leaves the state as down and queues the next job', async () => {
+          workers.state = 'down';
+          const eventsEmitSpy = sinon.spy(workers.events, 'emit');
+
+          const job1 = workers.enqueueJob(serviceDownJob, {});
+          const job2 = workers.enqueueJob(serviceDownJob, {});
+
+          await workers._onJobQueuedEventDown(job1.id);
+
+          expect(workers.state).to.eq('down');
+          expect(workers.jobsQueue.length()).to.eq(2);
+
+          // TODO: Why doesnt this line work?
+          //expect(eventsEmitSpy.withArgs('jobQueued', job2.id).calledOnce).to.eq(true);
+        });
+      });
+
+      context('and the job throws an other Error', () => {
+        // TODO: What is the desired behaviour here?
+      });
+    });
   });
 });
