@@ -46,6 +46,9 @@ describe('Datahog-Gateway', () => {
         });
       });
 
+      console.log(`[TEST] response received from server:`)
+      console.log(response);
+
       // TODO: Find  a better way of waiting until the callback has been called
       await sleep(100);
       expect(callbackRequest.isDone()).to.eq(true);

@@ -14,7 +14,7 @@ describe('Provider', () => {
 
   describe('callAndCallback()', () => {
     context('when the provider API returns a successful response', () => {
-      const successResponse = 'great_success';
+      const successResponse = JSON.stringify({hello: 'world'});
 
       it('calls the callbackUrl with the response as body', async () => {
         // Mock the provider:

@@ -13,35 +13,36 @@ class ServiceDownError extends Error {
 // TODO: This class is very monolithic, should be broken up according to behaviour,
 // i.e. split the code between the UP state and the DOWN state behaviour
 class WorkerRunner {
-  constructor({maxConcurrency, retryLimit}) {
+  constructor({name, maxConcurrency, retryLimit}) {
+    this.name = name;
+    this.maxConcurrency = maxConcurrency;
+    this.retryLimit = retryLimit;
+
     this.events = new EventEmitter();
     this.jobsQueue = new JobsQueue();
     this.busyWorkers = 0;
-    this.maxConcurrency = maxConcurrency;
-    this.retryLimit = retryLimit;
     this.state = 'up';
   }
 
   start() {
-    console.log(`[WorkerRunner] Starting in state: UP`);
+    this._log(`Starting in state: UP`);
     this.events.on('jobQueued', this._onJobQueuedEventUp.bind(this));
 
     // If there are already jobs in the queue then we have to emit events for each job,
     // this happens if the service is down but then goes back up again
     this.jobsQueue.jobs.forEach((job) => {
-      console.log(`Emitting jobQueued ${job.id}`)
       this.events.emit('jobQueued', job.id);
     });
   }
 
   startDown() {
-    console.log(`[WorkerRunner] Starting in state: DOWN`);
+    this._log(`Starting in state: DOWN`);
     this.events.on('jobQueued', this._onJobQueuedEventDown.bind(this));
   }
 
   stop() {
     this.events.removeAllListeners('jobQueued');
-    console.log(`[WorkerRunner] Stopped.`);
+    this._log(`Stopped.`);
   }
 
   enqueueJob(jobFunc, jobParams) {
@@ -53,12 +54,16 @@ class WorkerRunner {
   async _onJobQueuedEventUp(jobId) {
     const job = this.jobsQueue.dequeue(jobId);
 
-    console.log(`[WorkerRunner] Job ${job.id} trying to process...`);
+    // NOTE: Sometimes when you stop/start the events, there are some stale ones left over that
+    // still get called so we need to check that the job actually exists first:
+    if (job === undefined) return;
+
+    this._log(`trying to process...`, job);
 
     if (this._workerIsAvailable()) {
       await this._processJobUp(job);
     } else {
-      console.log(`[WorkerRunner] Job ${job.id} no worker available for processing.`);
+      this._log(`no worker available for processing.`, job);
       setTimeout(() => {
         this.jobsQueue.enqueue(job);
         this.events.emit('jobQueued', jobId);
@@ -68,8 +73,9 @@ class WorkerRunner {
 
   async _onJobQueuedEventDown(jobId) {
     const job = this.jobsQueue.dequeue(jobId);
+    if (job === undefined) return;
 
-    console.log(`[WorkerRunner] Job ${job.id} trying to process...`);
+    this._log(`trying to process...`, job);
 
     await this._processJobDown(job);
   }
@@ -78,21 +84,21 @@ class WorkerRunner {
   // TODO: Get rid of the duplicated coded bewtween this function and _processJobDown()
   async _processJobUp(job) {
     this.busyWorkers += 1;
-    console.log(`[WorkerRunner] Job ${job.id} processing...`);
+    this._log(`processing...`, job);
 
     try {
       // TODO: Probably a nicer way of doing this like using .bind()...
-      await job.func(job);
+      await job.func();
       this.busyWorkers -= 1;
-      console.log(`[WorkerRunner] Job ${job.id} done.`);
+      this._log(`done.`, job);
 
     } catch(e) {
       this.busyWorkers -= 1;
-      console.log(`[WorkerRunner] Job ${job.id} failed - ${e.message}`);
+      this._log(`failed - ${e.message}`, job);
 
       if (e instanceof ServiceDownError) {
         this._setDownState();
-        this.jobsQueue.enqueue(job);
+        this._enqueueJobObj(job)
       } else {
         this._retryJob(job);
       }
@@ -104,26 +110,26 @@ class WorkerRunner {
   // Processing a single job in the DOWN state
   async _processJobDown(job) {
     this.busyWorkers += 1;
-    console.log(`[WorkerRunner] Job ${job.id} processing...`);
+    this._log(`processing...`, job);
 
     try {
-      await job.func(job);
+      await job.func();
       this.busyWorkers -= 1;
-      console.log(`[WorkerRunner] Job ${job.id} done.`);
+      this._log(`done.`, job);
 
       // The service is Up again so we can go back to the UP state:
       this._setUpState();
 
     } catch(e) {
       this.busyWorkers -= 1;
-      console.log(`[WorkerRunner] Job ${job.id} failed - ${e.message}`);
+      this._log(`failed - ${e.message}`, job);
 
       this.jobsQueue.enqueue(job);
 
       // Process the next job in the queue:
       const nextJob = this.jobsQueue.getNextJob(job);
 
-      await sleep(this._jobInterval());
+      //await sleep(this._jobInterval());
       this.events.emit('jobQueued', nextJob.id);
 
     } finally {
@@ -132,14 +138,14 @@ class WorkerRunner {
   }
 
   _setDownState() {
-    console.log(`[WorkerRunner] Setting DOWN state...`);
+    this._log(`Setting DOWN state...`);
     this.stop();
     this.state = 'down';
     this.startDown();
   }
 
   _setUpState() {
-    console.log(`[WorkerRunner] Setting UP state...`);
+    this._log(`Setting UP state...`);
     this.stop();
     this.state = 'up';
     this.start();
@@ -156,22 +162,28 @@ class WorkerRunner {
   async _retryJob(job) {
     if (job.attempts >= this.retryLimit) {
       // TODO: Make this go into a dead-letter queue
-      console.error(`[WorkerRunner] Job ${job.id} has failed ${job.attempts} attempts! Discarding job.`);
+      console.error(`[WorkerRunner-${this.name}] Job ${job.id} has failed ${job.attempts} attempts! Discarding job.`);
       return;
     }
 
     const wait = job.attempts * 250;
     await sleep(wait);
 
-    console.log(`[WorkerRunner] Job ${job.id} retrying (attempt ${job.attempts}) after waiting ${wait} ms`)
+    this._log(`retrying (attempt ${job.attempts}) after waiting ${wait} ms`, job)
     job.attempts += 1;
     this._enqueueJobObj(job);
   }
 
   _enqueueJobObj(job) {
     this.jobsQueue.enqueue(job);
-    if (this.state == 'up') {
-      this.events.emit('jobQueued', job.id);
+    this.events.emit('jobQueued', job.id);
+  }
+
+  _log(message, job) {
+    if (job !== undefined) {
+      console.log(`[WorkerRunner-${this.name}] Job ${job.id} ${message}`);
+    } else {
+      console.log(`[WorkerRunner-${this.name}] ${message}`);
     }
   }
 }

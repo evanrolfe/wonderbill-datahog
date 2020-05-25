@@ -2,7 +2,10 @@
 
 ## Notes on my solution:
 
-I'm not sure if we were expected to code a background job processor from scratch but it says "Only use tools and frameworks you are familiar with!" and although I have a lot of experience with background jobs, most of that experience is in other languages and frameworks. I have not used any npm packages for background processing ,so I decided to roll my own. It was quite a challenge to complete all that within 3 hours, I'm sure I used more time than that but I was also doing it in the evenings after working during the day so please keep that in mind! The majority of my time was spent on coding the job queue processor which meant I didn't have as much time to really think about the best way to test this, and to get a complete test coverage, to think about the API format etc. Also my git commits are also not as methodical as they usually.
+There are two WorkerRunners for each provider (gas and internet). Effectively these are two job queues. Each WorkerRunner can be in either a state of "up" or "down". The WorkerRunner starts of in state "up", and if the provider returns a "#fail" response, it puts it into state "down". If the provider continues to respond with "#fail" then it leaves it in the down state, but if returns a succesful response then it goes back to the up state again. The behaviour for each state is this:
+
+- up state: process jobs concurrently, depending on the maxConcurrency parameter
+- down state: process jobs one-at-a-time, with 1 sec interval between jobs, if a job succeeds then go back to the up state
 
 ## Install
 
@@ -17,6 +20,17 @@ $ docker-compose up
 $ curl --location --request POST 'http://localhost:3001' \
 --header 'Content-Type: application/json' \
 --data-raw '{"provider": "gas", "callbackUrl": "http://callback-server:3002"}'
+```
+
+## Example Response:
+```
+{
+  "job": {
+    "id":"8746ea4d-85ea-4e93-8207-40f8352020cd",
+    "state":"queued"
+  },
+  "provider_state":"up"
+}
 ```
 
 ## Test

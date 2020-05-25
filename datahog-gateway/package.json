@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "NODE_ENV=production node ./src/index.js",
-    "test": "NODE_ENV=test ./node_modules/mocha/bin/mocha --config ./test/.mocharc.yml"
+    "test": "NODE_ENV=test ./node_modules/mocha/bin/mocha --config ./test/.mocharc.yml './test/unit/' './test/integration/'"
   },
   "author": "Evan Rolfe",
   "license": "ISC",

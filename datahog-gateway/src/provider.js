@@ -5,6 +5,14 @@ class Provider {
   constructor(name, providerUrl) {
     this.name = name;
     this.providerUrl = providerUrl;
+    this.workers = new WorkerRunner({name: name, maxConcurrency: 1, retryLimit: 3});
+    this.workers.start();
+  }
+
+  requestCallback(callbackUrl) {
+    const jobFunc = this.callAndCallback.bind(this, callbackUrl);
+    const job = this.workers.enqueueJob(jobFunc);
+    return job;
   }
 
   async callAndCallback(callbackUrl) {
@@ -16,21 +24,22 @@ class Provider {
           if (body == '#fail') {
             reject(new ServiceDownError());
           } else {
-            console.log(`[Provider-${this.name}] Received response! Calling callbackUrl: ${callbackUrl} with body: ${body}`);
+            console.log(`[Provider] Received response! Calling callbackUrl: ${callbackUrl} with body: ${JSON.stringify(body)}`);
 
-            const requestParams = {
-              url: callbackUrl,
-              body: body
-            };
+            const requestParams = { url: callbackUrl, json: true, body: body };
             request.post(requestParams, (err, res, body) => {
-              console.log(`[Provider-${this.name}] Recieved response from the callback! ${callbackUrl}`);
-              console.log(body);
-              resolve(body);
+              console.log(`[Provider] Recieved response from the callback! ${callbackUrl}`);
+              //console.log(body);
+              resolve();
             });
           }
         }
       });
     });
+  }
+
+  state() {
+    return 'up';
   }
 }
 
